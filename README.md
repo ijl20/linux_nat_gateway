@@ -23,37 +23,31 @@ $ dmesg | grep 0b95
 [   89.982217] ax88179_178a 2-5:1.0 enxa0cec8c234c7: ax88179 - Link status is: 1
 $
 ```
-You can see the interface names with `ifconfig`:
+You can see the interface names with `ip a`:
 ```
-$ ifconfig
-enp0s31f6: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
-        inet 128.232.60.94  netmask 255.255.252.0  broadcast 128.232.63.255
-        inet6 2001:630:212:220:1a66:daff:fe2d:3d4  prefixlen 64  scopeid 0x0<global>
-        inet6 fe80::1a66:daff:fe2d:3d4  prefixlen 64  scopeid 0x20<link>
-        ether 18:66:da:2d:03:d4  txqueuelen 1000  (Ethernet)
-        RX packets 50359802  bytes 47974145878 (47.9 GB)
-        RX errors 0  dropped 63  overruns 0  frame 0
-        TX packets 26434888  bytes 3553453904 (3.5 GB)
-        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
-        device interrupt 19  memory 0xf7000000-f7020000  
-
-enxa0cec8c234c7: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
-        inet 192.168.1.1  netmask 255.255.255.0  broadcast 192.168.1.255
-        inet6 fe80::a2ce:c8ff:fec2:34c7  prefixlen 64  scopeid 0x20<link>
-        ether a0:ce:c8:c2:34:c7  txqueuelen 1000  (Ethernet)
-        RX packets 4369578  bytes 466099357 (466.0 MB)
-        RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 4971911  bytes 2170212483 (2.1 GB)
-        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
-
-lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
-        inet 127.0.0.1  netmask 255.0.0.0
-        inet6 ::1  prefixlen 128  scopeid 0x10<host>
-        loop  txqueuelen 1000  (Local Loopback)
-        RX packets 5358675  bytes 889658305 (889.6 MB)
-        RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 5358675  bytes 889658305 (889.6 MB)
-        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: enp0s31f6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether a4:bb:6d:93:78:f8 brd ff:ff:ff:ff:ff:ff
+    inet 128.232.110.18/24 brd 128.232.110.255 scope global noprefixroute enp0s31f6
+       valid_lft forever preferred_lft forever
+    inet6 fe80::25c3:aa3:62dc:53ac/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+4: wlp0s20f3: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether 70:a6:cc:85:83:e2 brd ff:ff:ff:ff:ff:ff
+5: enxa0cec8c234c7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether a0:ce:c8:c2:34:c7 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.1/24 brd 192.168.1.255 scope global enxa0cec8c234c7
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a2ce:c8ff:fec2:34c7/64 scope link
+       valid_lft forever preferred_lft forever
+    inet6 fe80::ceac:5af1:49f8:65d9/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
 ```
 
 Note `enp0s31f6` is the workstation original main ethernet connection to the enterprise LAN, `enxa0cec8c234c7` is the persistent
@@ -71,10 +65,110 @@ iface enp0s31f6 inet6 auto
 auto enxa0cec8c234c7
 iface enxa0cec8c234c7 inet static
     address 192.168.1.1
-    netmask 255.255.255.0
+    netmask 255.255.255.0drwxr-xr-x   2 root root 4.0K Nov 15 09:56 .
     post-up /etc/init.d/isc-dhcp-server start
     post-down /etc/init.d/isc-dhcp-server stop
 $
+```
+# Setting static IP via netplan
+```
+ll /etc/netplan
+
+drwxr-xr-x 151 root root  12K Nov 15 08:57 ..
+-rw-------   1 root root  151 Nov 15 09:56 01-network-manager-all.yaml
+-rw-------   1 root root  832 Nov 15 08:51 90-NM-4cd65327-af89-38d2-8d7a-505eaf99afb2.yaml
+```
+01-network-manager-all.yaml
+```
+# NAT gateway configuration
+---
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enxa0cec8c234c7:
+      addresses:
+        - 192.168.1.1/24
+```
+
+90-NM-4cd65327-af89-38d2-8d7a-505eaf99afb2.yaml
+```
+network:
+  version: 2
+  ethernets:
+    NM-4cd65327-af89-38d2-8d7a-505eaf99afb2:
+      renderer: NetworkManager
+      match:
+        name: "enp0s31f6"
+      addresses:
+      - "128.232.110.18/24"
+      nameservers:
+        addresses:
+        - 131.111.8.42
+        - 131.111.12.20
+        - 8.8.8.8
+      dhcp6: true
+      ipv6-address-generation: "stable-privacy"
+      wakeonlan: true
+      networkmanager:
+        uuid: "4cd65327-af89-38d2-8d7a-505eaf99afb2"
+        name: "Wired connection 1"
+        passthrough:
+          connection.autoconnect-priority: "-999"
+          connection.permissions: "user:ijl20:;"
+          connection.timestamp: "1643823927"
+          ethernet._: ""
+          ipv4.address1: "128.232.110.18/24,128.232.110.1"
+          ipv4.method: "manual"
+          ipv6.ip6-privacy: "-1"
+          proxy._: ""
+```
+
+```
+sudo apt install yamllint
+
+sudo yamllint /etc/netplan/01-network-manager-all.yaml
+```
+
+```
+sudo netplan apply
+(ignore Cannot call Open vSwitch: ovsdb-server.service is not running.)
+```
+
+```
+ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: enp0s31f6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether a4:bb:6d:93:78:f8 brd ff:ff:ff:ff:ff:ff
+    inet 128.232.110.18/24 brd 128.232.110.255 scope global noprefixroute enp0s31f6
+       valid_lft forever preferred_lft forever
+    inet6 fe80::25c3:aa3:62dc:53ac/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+4: wlp0s20f3: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether 70:a6:cc:85:83:e2 brd ff:ff:ff:ff:ff:ff
+5: enxa0cec8c234c7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether a0:ce:c8:c2:34:c7 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.1/24 brd 192.168.1.255 scope global enxa0cec8c234c7
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a2ce:c8ff:fec2:34c7/64 scope link
+       valid_lft forever preferred_lft forever
+    inet6 fe80::ceac:5af1:49f8:65d9/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+```
+
+```ping 192.168.1.1
+PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.
+64 bytes from 192.168.1.1: icmp_seq=1 ttl=64 time=0.044 ms
+64 bytes from 192.168.1.1: icmp_seq=2 ttl=64 time=0.063 ms
+^C
+--- 192.168.1.1 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1022ms
+rtt min/avg/max/mdev = 0.044/0.053/0.063/0.009 ms
 ```
 
 ### Step 2. DHCP server installation.
@@ -354,7 +448,12 @@ $
 
 ### Step 3. NAT routing via iptables configuration.
 Add a NAT forwarding rule to iptables. Note this is for the workstation enterprise LAN ethernet port, NOT the downstream
-USB NAT ethernet:
+USB NAT ethernet. Check the ethernet i/f name with:
+```
+ip a
+```
+
+the set these `iptables` rules:
 ```
 sudo iptables -t nat -A POSTROUTING -o enp0s31f6 -j MASQUERADE
 ```
