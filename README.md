@@ -465,3 +465,96 @@ Or if it was already installed please update setting by running:
 ```
 sudo dpkg-reconfigure iptables-persistent
 ```
+
+# Fixing netplan-based networking after an update
+
+An Ubuntu update requiring a restart seems to regularly break the netplan config for the 192.168.1.1 port and the `ip a` command
+will show the 2nd ethernet port with no IP address
+
+```
+~$ ip a
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute
+       valid_lft forever preferred_lft forever
+2: enp0s31f6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether a4:bb:6d:93:78:f8 brd ff:ff:ff:ff:ff:ff
+    inet 128.232.110.18/24 brd 128.232.110.255 scope global noprefixroute enp0s31f6
+       valid_lft forever preferred_lft forever
+    inet6 fe80::25c3:aa3:62dc:53ac/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+3: enxa0cec8c234c7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether a0:ce:c8:c2:34:c7 brd ff:ff:ff:ff:ff:ff
+4: wlp0s20f3: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether 70:a6:cc:85:83:e2 brd ff:ff:ff:ff:ff:ff
+```
+
+And the dhcp service `sudo service isc-dhcp-server status` will be 'failed':
+```
+~$ sudo service isc-dhcp-server status
+[sudo] password for ijl20:
+× isc-dhcp-server.service - ISC DHCP IPv4 server
+     Loaded: loaded (/usr/lib/systemd/system/isc-dhcp-server.service; enabled; preset: enabled)
+     Active: failed (Result: exit-code) since Tue 2024-09-03 14:06:44 BST; 5s ago
+   Duration: 22ms
+       Docs: man:dhcpd(8)
+    Process: 6075 ExecStart=/bin/sh -ec      CONFIG_FILE=/etc/dhcp/dhcpd.conf;      if [ -f /etc/ltsp/dhcpd.conf ]; then CONFIG_FIL>
+   Main PID: 6075 (code=exited, status=1/FAILURE)
+        CPU: 15ms
+
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: Not configured to listen on any interfaces!
+Sep 03 14:06:44 adacity-i1 systemd[1]: isc-dhcp-server.service: Failed with result 'exit-code'.
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]:
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: If you think you have received this message due to a bug rather
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: than a configuration issue please read the section on submitting
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: bugs on either our web page at www.isc.org or in the README file
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: before submitting a bug.  These pages explain the proper
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: process and the information we find helpful for debugging.
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]:
+Sep 03 14:06:44 adacity-i1 dhcpd[6075]: exiting.
+...skipping...
+× isc-dhcp-server.service - ISC DHCP IPv4 server
+     Loaded: loaded (/usr/lib/systemd/system/isc-dhcp-server.service; enabled; preset: enabled)
+     Active: failed (Result: exit-code) since Tue 2024-09-03 14:06:44 BST; 5s ago
+   Duration: 22ms
+       Docs: man:dhcpd(8)
+    Process: 6075 ExecStart=/bin/sh -ec      CONFIG_FILE=/etc/dhcp/dhcpd.conf;      if [ -f /etc/ltsp/dhcpd.conf ]; then CONFIG_FIL>
+   Main PID: 6075 (code=exited, status=1/FAILURE)
+        CPU: 15ms
+
+```
+
+The `/etc/netplan` directory will show the required files moved to `*_backup` and the Ubuntu upgrade will only have
+built the `90-NM...`file for the main ethernet port.
+
+```
+~$ ll /etc/netplan/
+total 32K
+drwxr-xr-x   2 root root 4.0K Aug 27 08:01 .
+drwxr-xr-x 152 root root  12K Sep  3 11:26 ..
+-rw-------   1 root root  404 Nov 15  2023 01-network-manager-all.yaml_backup
+-rw-------   1 root root  235 Jul 17 10:44 01-network-manager-all.yaml.dpkg-backup
+-rw-------   1 root root  832 Nov 15  2023 90-NM-4cd65327-af89-38d2-8d7a-505eaf99afb2.yaml
+-rw-------   1 root root  528 Jun 13 11:09 90-NM-c2edbcda-a96b-3dc7-857f-2043af16c030.yaml_backup
+```
+
+The solution is to:
+
+```
+sudo mv /etc/netplan/01-network-manager-all.yaml{_backup,}
+sudo netplan apply
+ip a
+ping 192.168.1.1
+sudo service isc-dhcp-server status
+```
+
+The `ip a` command should show the 192.168.1.1 address, and the `ping` should succeed, and the dhcp server should be active.
+
+If necesssary to restart the DHCP server:
+```
+sudo service isc-dhcp-server restart
+```
+
