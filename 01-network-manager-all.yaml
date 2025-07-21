@@ -1,0 +1,9 @@
+# NAT gateway configuration
+---
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enxa0cec8c234c7:
+      addresses:
+        - 192.168.1.1/24
