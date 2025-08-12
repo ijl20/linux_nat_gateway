@@ -558,3 +558,41 @@ If necesssary to restart the DHCP server:
 sudo service isc-dhcp-server restart
 ```
 
+# If NAT forwarding not working
+
+## Check ip_tables rules with:
+```
+sudo iptables -t nat -L -v
+```
+Should show POSTROUTING MASQUERADE, if not, see above for iptables setting.
+
+## Persisting /proc/sys/net/ipv4/ip_forward
+
+This file contains 0 or 1 for the kernel to enable ip forwarding.
+
+Check status with:
+```
+sudo cat /proc/sys/net/ipv4/ip_forward
+sysctl net/ipv4/ip_forward
+```
+
+Can toggle to 1 via editing with nano, see if this immediately starts forwarding:
+```
+sudo nano /proc/sys/net/ipv4/ip_forward
+```
+
+To persist, add `/etc/sysctl.d/99-ip-forwarding.conf`:
+```
+# ijl20 trying to make this persistent on reboot
+net.ipv4.ip_forward=1
+```
+
+Also if UFW is running, check `/etc/ufw/sysctl.conf` has:
+```
+# Uncomment this to allow this host to route packets between interfaces
+net/ipv4/ip_forward=1
+```
+
+
+
+
